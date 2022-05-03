@@ -63,7 +63,7 @@ def singleton(cls, *args, **kwargs):
         return instance[cls]
     return __singleton
 
-class Builder:
+class Builder(metaclass = ABCMeta):
     """包状态的基类"""
     def __init__(self, 
                  verbose    = 0, 
@@ -127,20 +127,61 @@ class Builder:
                 self.info.data['release']))
 
     def forceok(self,msg):
-        return False
-        #if not 
 
+        if self.force != 1:
+            sys.exit("FATAL (use --force to override):", msg)
+        # use loginfo
+        print("WARN:", msg)
 
+    def template_file(self,fm,to,chmod):
+        string = self.template_string(fm)
+        '''
+  open my $f, ">$to";
+  print $f $str;
+  close $f;
+  chmod $chmod, $to if ( defined $chmod );
+        '''
+    def template_string(self, fm):
+        '''
+        XXX todo
+        '''
+        return ''
+
+    def substvars(self, buf):
+        '''
+        XXX 字符串替换.
+        '''
+        return ''
+
+    @abstractmethod
     def isMatch(self):
         "状态的属性pkgInfo是否在当前的状态范围内"
-        return False
+        pass
 
-    def cleanup( self ):
+    @abstractmethod
+    def makepackage(self):
+        pass
+
+    def install_gemspec(self):
+        return  True
+
+    def cleanup(self):
         print("Info: Cleaning up..." + self.tmpdir )
         os.system( "rm -rf " + self.tmpdir )
 
-    def build(self):
+    def _listfile(self):
+        return True
 
+    def listdir(self):
+        return []
+
+    def runcmd(self):
+        return []
+
+    def fetch(self):
+        return True
+
+    def build(self):
         info = self.getInfo()
 
         self.tmpdir   = tempfile.mkdtemp(prefix='metapkg-')
@@ -153,13 +194,24 @@ class Builder:
         except OSError as error:
             sys.exit("Unable to mkdir", error)
 
-        self.setrelease()
         os.chdir( info.directory )
         realbuild = self.builddir
 
         # fetch source from remote
         # XXX
         self.fetch()
+
+    def verify_data(self,root):
+        return True
+
+    def shebangmunge(self,dirname):
+        return True
+
+    def transform(self, installdir):
+        return True
+
+    def copyroot(self):
+        return True
 
     def get_file_rules(self):
         ''' not done yet '''

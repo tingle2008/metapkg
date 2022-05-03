@@ -111,6 +111,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+test_pkg/
+runit
+Multipkg.pm
 
 # Spyder project settings
 .spyderproject
