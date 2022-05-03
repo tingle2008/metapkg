@@ -1,0 +1,7 @@
+---
+default:
+   name: metapkg
+   release: '1'
+   summary: meta package.
+   version: '0.0.1'
+   python: /usr/local/bin/python3.10
