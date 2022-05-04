@@ -7,6 +7,8 @@ import os,re,time
 import tempfile
 from os.path import exists,isdir
 
+import shlex, subprocess
+
 import pprint
 
 pp = pprint.PrettyPrinter(indent=4)
@@ -97,11 +99,11 @@ class Builder(metaclass = ABCMeta):
 
     def taroption(self,tarball):
         opt_str = ''
-        if re.match('\.(tar\.gz|tgz)$',tarball):
+        if re.search('\.(tar\.gz|tgz)$',tarball):
             opt_str = 'zxf'
-        if re.match('\.(tar\.bz2|tbz)$',tarball):
+        if re.search('\.(tar\.bz2|tbz)$',tarball):
             opt_str = 'jxf'
-        if re.match('\.(tar\.xz)$',tarball):
+        if re.search('\.(tar\.xz)$',tarball):
             opt_str = 'Jxf'
         return opt_str
 
@@ -175,8 +177,38 @@ class Builder(metaclass = ABCMeta):
     def listdir(self):
         return []
 
-    def runcmd(self):
-        return []
+    def runcmd(self, cmd, env = {}, count = 10):
+        
+        print("RUNNING:", cmd)
+        last = []
+
+        args = shlex.split(cmd)
+        print("split args:",args)
+        p = subprocess.Popen(args, 
+                             shell=True, 
+                             env = env,
+                             stdout=subprocess.PIPE)
+
+        while True:
+            output = p.stdout.readline()
+            if not output:
+                break
+            if output:
+                last.append(output.strip())
+                if len(last) > count:
+                    last.pop(0)
+
+            if self.verbose:
+                print(output.strip().decode("utf-8"))
+
+        #p.stdout.close()
+
+        if p.wait() != 0:
+            print("Build failed", "\n".join(last))
+            raise Exception(cmd)
+            #sys.exit("Build failed")
+
+        return last
 
     def fetch(self):
         return True
@@ -200,6 +232,78 @@ class Builder(metaclass = ABCMeta):
         # fetch source from remote
         # XXX
         self.fetch()
+
+        if 'sourcedir' in info.data and isdir(info.data['sourcedir']):
+            print("INFO: Building from" . info.data['sourcedir'])
+            os.system( "cd "   + 
+                        info.data['sourcedir'] + 
+                        " && " + 
+                        "tar cf - . | tar xf - -C " + 
+                        self.builddir )
+        elif 'sourcetar' in info.data and exists(info.data['sourcetar']):
+            print("INFO: Building from" + info.data['sourcetar'])
+            tar_opt = self.taroption(info.data['sourcetar'])
+            os.system( "tar " +
+                       tar_opt + " " + 
+                       info.data['sourcetar'] + 
+                       " -C " + self.builddir )
+            with os.scandir( self.builddir ) as d:
+                for entry in d:
+                    if re.match( '^\.', entry.name):
+                        continue
+                    if entry.is_dir():
+                        realbuild = self.builddir + "/" + entry.name
+        else:
+            print("ERROR: do not found real build dir.")
+            return
+
+        destdir = self.installdir
+        prefix  = '/usr'
+        if 'buildprefix' in info.data:
+            prefix = info.data['buildprefix']
+
+        perl = '/usr/bin/perl'
+        if 'perl' in info.data:
+            perl = info.data['perl']
+
+        os.chdir( realbuild )
+        self._vars['BUILDDIR'] = realbuild
+
+        patchdir = info.directory + '/patches';
+        patches  = []
+
+        if isdir(patchdir):
+            print("Applying patches")
+            with os.scandir( patchdir ) as d:
+                for entry in d:
+                    if re.match('^\.', entry.name ):
+                        continue
+                    if entry.is_file():
+                        patches.append( entry.name )
+
+            for patch in patches.sort():
+                print("Applying:",patch);
+                self.runcmd( "patch --ignore-whitespace -p 1 -d . <" + patchdir + "/" + patch )
+
+        env = os.environ.copy()
+        env['PERL'] = perl
+        env['INSTALLROOT'] = env['DESTDIR'] = destdir
+        env['PREFIX'] = prefix
+        env['PKGVERID'] = self.pkgverid()
+        env['PACKAGEVERSION'] = info.data['version']
+        env['PACKAGENAME'] = info.data['name']
+
+        if 'gem' in info.data and 'gembuild' in info.scripts:
+            self.runcmd(info.scripts['gembuild'],env)
+        else:
+            try:
+                self.runcmd( info.scripts['build'], env )
+            except Exception as e:
+                msg = "Error running:" + "".join(e.args)
+                print(msg)
+                return msg
+
+        os.chdir( self.cwd )
 
     def verify_data(self,root):
         return True
