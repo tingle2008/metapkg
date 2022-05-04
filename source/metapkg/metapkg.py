@@ -5,7 +5,7 @@ from typing import Any,Dict
 from dataclasses import dataclass,field
 import os,re,time
 import tempfile
-from os.path import exists,isdir
+from os.path import isdir,isfile
 
 import shlex, subprocess
 
@@ -187,7 +187,10 @@ class Builder(metaclass = ABCMeta):
         p = subprocess.Popen(args, 
                              shell=True, 
                              env = env,
-                             stdout=subprocess.PIPE)
+                             universal_newlines=True,
+                             bufsize = 1,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT)
 
         while True:
             output = p.stdout.readline()
@@ -201,12 +204,9 @@ class Builder(metaclass = ABCMeta):
             if self.verbose:
                 print(output.strip().decode("utf-8"))
 
-        #p.stdout.close()
-
         if p.wait() != 0:
             print("Build failed", "\n".join(last))
             raise Exception(cmd)
-            #sys.exit("Build failed")
 
         return last
 
@@ -240,7 +240,7 @@ class Builder(metaclass = ABCMeta):
                         " && " + 
                         "tar cf - . | tar xf - -C " + 
                         self.builddir )
-        elif 'sourcetar' in info.data and exists(info.data['sourcetar']):
+        elif 'sourcetar' in info.data and isfile(info.data['sourcetar']):
             print("INFO: Building from" + info.data['sourcetar'])
             tar_opt = self.taroption(info.data['sourcetar'])
             os.system( "tar " +
@@ -296,10 +296,11 @@ class Builder(metaclass = ABCMeta):
         if 'gem' in info.data and 'gembuild' in info.scripts:
             self.runcmd(info.scripts['gembuild'],env)
         else:
+            # how to deal with gem?
             try:
                 self.runcmd( info.scripts['build'], env )
             except Exception as e:
-                msg = "Error running:" + "".join(e.args)
+                msg = "Error running:" + e.args[0]
                 print(msg)
                 return msg
 
@@ -315,6 +316,21 @@ class Builder(metaclass = ABCMeta):
         return True
 
     def copyroot(self):
+        '''copy root to install dir'''
+        installdir = self.installdir
+        if 'rootdir' in self.info.data and isdir(self.info.data['rootdir']):
+            print("INFO: Using " . self.info.data['rootdir'])
+            os.system("cd " + self.info.data['rootdir'] + " && " + "tar cf - --exclude \.svn --exclude \.git . | tar xf - -C " + installdir )
+        elsif 'roottar' in self.info.data and isfile(self.info.data['roottar']):
+            print("INFO: Using " . self.info.data['roottar'])
+            tar_opt = self.taroption(self.info.data['roottar'])
+            os.system("tar " + tar_opt + " " + self.info.data['roottar'] + " -C " + installdir)
+
+        # install daemontools service
+
+        if 'run' in self.info.scripts and 'logrun' in self.info.data:
+            print("Next etc....XXX")
+        
         return True
 
     def get_file_rules(self):
@@ -447,8 +463,6 @@ class Metapkg( BuildContext ):
                         confdir   = self.confdir,
                         meta      = self.meta )
 
-        # 动物园加入各种动物一样. 开闭原则上看. 如果添加新的bulder 只要新增builder 就好了
-        # self.addPkgBuilder 之后直接调用build 就好。
         self.addPkgBuilder(Deb( verbose = self.verbose,
                                 force   = self.force,
                                 cwd     = self.cwd ))
