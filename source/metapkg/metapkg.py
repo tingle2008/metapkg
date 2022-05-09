@@ -321,7 +321,7 @@ class Builder(metaclass = ABCMeta):
         if 'rootdir' in self.info.data and isdir(self.info.data['rootdir']):
             print("INFO: Using " . self.info.data['rootdir'])
             os.system("cd " + self.info.data['rootdir'] + " && " + "tar cf - --exclude \.svn --exclude \.git . | tar xf - -C " + installdir )
-        elsif 'roottar' in self.info.data and isfile(self.info.data['roottar']):
+        elif 'roottar' in self.info.data and isfile(self.info.data['roottar']):
             print("INFO: Using " . self.info.data['roottar'])
             tar_opt = self.taroption(self.info.data['roottar'])
             os.system("tar " + tar_opt + " " + self.info.data['roottar'] + " -C " + installdir)

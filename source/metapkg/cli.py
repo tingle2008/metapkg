@@ -17,13 +17,18 @@ init_metadata = {'actionlog':
 @click.argument('dirs', nargs= -1, type=click.Path(exists=True))
 @click.option('-v', '--verbose', count = True , help='verbose mode. default off')
 @click.option('-s', '--set', 'setstr', help='List of variables to set e.g.: a=b,c=d')
+@click.option('-f','--force', is_flag = False, help='USE FORCE. default off')
+@click.option('-t','--testbuild', is_flag = False, help='test build. default off')
+@click.option('-p', '--platform', 'platstr', default = '' , help='platform default \'\' ')
 @click.option('--keepfiles/--no-keepfiles', default = False , help='Keep files after build')
-
 
 def mkpkg(dirs,
           verbose,
           keepfiles,
-          setstr):
+          setstr,
+          force,
+          testbuild,
+          platstr):
 
     overrides = {}
     if setstr:
@@ -37,10 +42,10 @@ def mkpkg(dirs,
     for directory in dirs:
         mp = Metapkg(directory = directory,
                      cleanup   = not keepfiles,
-                     force     = True,
+                     force     = force,
                      warn_on_error = 1,
                      verbose  = verbose,
-                     platform = 'ubuntu',
+                     platform = platstr,
                      overrides = overrides,
                      meta = init_metadata )
         mp.build()
