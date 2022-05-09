@@ -3,11 +3,13 @@ from .info import Info
 from abc import ABCMeta,abstractmethod
 from typing import Any,Dict
 from dataclasses import dataclass,field
+from os.path import isdir,isfile
+from shutil import copy
+
 import os,re,time
 import tempfile
-from os.path import isdir,isfile
-
 import shlex, subprocess
+
 
 import pprint
 
@@ -329,9 +331,32 @@ class Builder(metaclass = ABCMeta):
         # install daemontools service
 
         if 'run' in self.info.scripts and 'logrun' in self.info.data:
-            print("Next etc....XXX")
-        
-        return True
+            if 'service' not in self.info.data:
+                self.info.data['service'] = self.info.data['name']
+            service = self.info.data['service'] 
+            print("INFO: Installing daemontools service:", service)
+
+            for dir_ in [ 'etc',
+                          'etc/service',
+                          'etc/service/' + service, 
+                          'etc/service/' + service + '/log',
+                          'etc/service/' + service + '/log/main' ]:
+                inst_dir = '{}/{}'.format(installdir,dir_)
+                if not isdir(inst_dir):
+                    os.mkdir(inst_dir)
+
+            #try use filter / map way to do this operation.
+            run_file    = '{}/etc/service/{}/run'.format(installdir,service)
+            log_run_file = '{}/etc/service/{}/log/run'.format(installdir,service)
+            copy(self.info.scripts['run'], run_file )
+            copy(self.info.scripts['logrun'],log_run_file)
+
+            os.chmod( run_file, 0o755 )
+            os.chmod( log_run_file, 0o755 )
+
+            uid,pid = (getpwnam('nobody')[2],getpwnam('nobody')[3])
+                
+            chown('{}/etc/service/{}/log/main'.format(installdir,service),uid,gid)
 
     def get_file_rules(self):
         ''' not done yet '''
